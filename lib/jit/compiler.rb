@@ -12,7 +12,7 @@ module JIT
     # Size of the JIT buffer
     JIT_BUF_SIZE = 1024 * 1024
 
-    STACK = [:r8]
+    STACK = [:r8, :r9]
     EC = :rdi
     CFP = :rsi
 
@@ -40,6 +40,18 @@ module JIT
         in :putnil
           asm.mov(STACK[stack_size], C.to_value(nil))
           stack_size += 1
+        in :putobject_INT2FIX_1_
+          asm.mov(STACK[stack_size], C.to_value(1))
+          stack_size += 1
+        in :putobject
+          operand = iseq.body.iseq_encoded[insn_index + 1]
+          asm.mov(STACK[stack_size], operand)
+        in :opt_plus
+          recv = STACK[stack_size - 2]
+          obj = STACK[stack_size - 1]
+          asm.add(recv, obj)
+          asm.sub(recv, 1)
+          stack_size -= 1
         in :leave
           asm.add(CFP, C.rb_control_frame_t.size)
           asm.mov([EC, C.rb_execution_context_t.offsetof(:cfp)], CFP)
