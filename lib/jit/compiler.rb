@@ -12,6 +12,10 @@ module JIT
     # Size of the JIT buffer
     JIT_BUF_SIZE = 1024 * 1024
 
+    STACK = [:r8]
+    EC = :rdi
+    CFP = :rsi
+
     # Initialize a JIT buffer. Called only once.
     def initialize
       # Allocate 64MiB of memory. This returns the memory address.
@@ -27,11 +31,20 @@ module JIT
 
       # Iterate over each YARV instruction.
       insn_index = 0
+      stack_size = 0
       while insn_index < iseq.body.iseq_size
         insn = INSNS.fetch(C.rb_vm_insn_decode(iseq.body.iseq_encoded[insn_index]))
         case insn.name
         in :nop
           # none
+        in :putnil
+          asm.mov(STACK[stack_size], C.to_value(nil))
+          stack_size += 1
+        in :leave
+          asm.add(CFP, C.rb_control_frame_t.size)
+          asm.mov([EC, C.rb_execution_context_t.offsetof(:cfp)], CFP)
+          asm.mov(:rax, STACK[stack_size - 1])
+          asm.ret
         end
         insn_index += insn.len
       end
